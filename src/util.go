@@ -3,7 +3,6 @@ package past
 import (
 	"bytes"
 	"crypto/subtle"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"reflect"
@@ -33,40 +32,35 @@ func PAE(pieces []string) (string, error) {
 	return output, nil
 }
 
-//encodeUnpadded encodes input using the unpadded alternate base64 encoding
-//as defined in RFC 4648
-func encodeUnpadded(src string) string {
-	bytes := []byte(src)
-	s := base64.URLEncoding.WithPadding(-1).EncodeToString(bytes)
-	return s
-}
-
-func decodeUnpadded(src string) string {
-	s := base64.URLEncoding.WithPadding(-1).DecodeString(src)
-	return s
-}
-
 func hashEquals(s1, s2 string) bool {
 	b1 := []byte(s1)
 	b2 := []byte(s2)
-	return bool(subtle.ConstantTimeCompare(b1, b2))
+	return subtle.ConstantTimeCompare(b1, b2) == 1
 }
 
 func validateAndRemoveFooter(params ...string) (string, error) {
+	var payload, encodedFooter string
 	switch len(params) {
 	case 1:
-		payload := params[0]
+		payload = params[0]
 		return payload, nil
 	case 2:
-		payload := params[0]
+		payload = params[0]
 		footer := params[1]
+		var err error
+		encodedFooter, err = encodeConstantTime(footer)
+		if err != nil {
+			return "", err
+		}
 	default:
 		return "", errors.New("Incorrect number of parameters")
 	}
-	footer = encodeUnpadded(footer)
 	payloadLen := len(payload)
-	footerLen := len(footer)
+	footerLen := len(encodedFooter)
 	trailingLen := payloadLen - (footerLen + 1)
 	trailing := payload[trailingLen:]
-
+	if !hashEquals(encodedFooter, trailing) {
+		return "", errors.New("Invalid message footer")
+	}
+	return payload[:trailingLen], nil
 }
