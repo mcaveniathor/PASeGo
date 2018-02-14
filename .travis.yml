@@ -4,4 +4,4 @@ go:
 before-install:
   - cp .netrc ~
   - chmod 600 .netrc
-script: go test src/*.go
+script: go test -v src/*.go
